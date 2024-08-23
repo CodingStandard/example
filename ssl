@@ -1,0 +1,54 @@
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.ssl.SSLContextBuilder;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.web.client.RestTemplate;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.security.KeyStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import javax.net.ssl.SSLContext;
+
+public class RestTemplateWithPemExample {
+
+    public static RestTemplate createRestTemplate() throws Exception {
+        // Load the PEM file
+        File pemFile = new File("path/to/your/certificate.pem");
+        byte[] pemBytes = Files.readAllBytes(pemFile.toPath());
+        
+        // Create a CertificateFactory and generate an X509Certificate from the PEM
+        CertificateFactory factory = CertificateFactory.getInstance("X.509");
+        X509Certificate cert = (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(pemBytes));
+
+        // Create a KeyStore and load the certificate
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null); // Initialize an empty KeyStore
+        keyStore.setCertificateEntry("alias", cert);
+
+        // Create an SSLContext using the loaded certificate
+        SSLContext sslContext = SSLContextBuilder.create()
+                .loadTrustMaterial(keyStore, null)
+                .build();
+
+        // Set up the RestTemplate with the SSLContext
+        SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
+                sslContext, NoopHostnameVerifier.INSTANCE);
+        CloseableHttpClient httpClient = HttpClients.custom()
+                .setSSLSocketFactory(socketFactory)
+                .build();
+
+        HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        return new RestTemplate(requestFactory);
+    }
+
+    public static void main(String[] args) throws Exception {
+        RestTemplate restTemplate = createRestTemplate();
+        // Use the RestTemplate as usual
+        String response = restTemplate.getForObject("https://your-secure-url.com", String.class);
+        System.out.println(response);
+    }
+}
